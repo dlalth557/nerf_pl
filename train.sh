@@ -17,8 +17,8 @@ python train.py \
    --beta_min 0.03 \
    --batch_size 4096 \
    --chunk 65536 \
-   --N_VOCAB_epochs 20 \
-   --N_VOCAB_gpus 2 \
+   --num_epochs 20 \
+   --num_gpus 2 \
    --optimizer adam \
    --lr 5e-4 \
    --lr_scheduler cosine \

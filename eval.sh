@@ -1,8 +1,8 @@
 DATASET=$1
 CKPT=$2
-NVOCAB=0
+N_VOCAB=0
 if [ ${DATASET} == "fire" ]; then
-NVOCAB=4100
+N_VOCAB=4100
 fi
 
 python eval.py \
@@ -16,7 +16,7 @@ python eval.py \
    --N_importance 128 \
    --img_downscale 2 \
    --use_cache \
-   --N_vocab ${NVOCAB} \
+   --N_vocab ${N_VOCAB} \
    --encode_a \
    --encode_t \
    --beta_min 0.03 \
