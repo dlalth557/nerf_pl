@@ -29,7 +29,7 @@ def get_opts():
                         help='scene name, used as output folder name')
     parser.add_argument('--split', type=str, default='val',
                         choices=['val', 'test', 'test_train'])
-    parser.add_argument('--img_wh', nargs="+", type=int, default=[800, 800],
+    parser.add_argument('--img_wh', nargs="+", type=int, default=[640, 480],
                         help='resolution (img_w, img_h) of the image')
     # for phototourism
     parser.add_argument('--img_downscale', type=int, default=1,
@@ -154,12 +154,14 @@ if __name__ == "__main__":
     models = {'coarse': nerf_coarse, 'fine': nerf_fine}
 
     imgs, psnrs = [], []
-    dir_name = f'results/{args.dataset_name}/{args.scene_name}'
+    dir_name = f'{args.root_dir}/nerf-w'
     os.makedirs(dir_name, exist_ok=True)
 
     kwargs = {}
+
     # define testing poses and appearance index for phototourism
     if args.dataset_name == 'phototourism' and args.split == 'test':
+        """
         # define testing camera intrinsics (hard-coded, feel free to change)
         dataset.test_img_w, dataset.test_img_h = args.img_wh
         dataset.test_focal = dataset.test_img_w/2/np.tan(np.pi/6) # fov=60 degrees
@@ -181,12 +183,14 @@ if __name__ == "__main__":
                 dataset.poses_test[i, 2, 3] += dz[i]
         else:
             raise NotImplementedError
+        """
         kwargs['output_transient'] = False
 
     for i in tqdm(range(len(dataset))):
         sample = dataset[i]
         rays = sample['rays']
         ts = sample['ts']
+        saved_img_name = sample['img_name'][:-4] + "_synth.png"
         results = batched_inference(models, embeddings, rays.cuda(), ts.cuda(),
                                     args.N_samples, args.N_importance, args.use_disp,
                                     args.chunk,
@@ -199,20 +203,18 @@ if __name__ == "__main__":
             w, h = sample['img_wh']
         
         img_pred = np.clip(results['rgb_fine'].view(h, w, 3).cpu().numpy(), 0, 1)
-        
+
         img_pred_ = (img_pred*255).astype(np.uint8)
         imgs += [img_pred_]
-        imageio.imwrite(os.path.join(dir_name, f'{i:03d}.png'), img_pred_)
+        imageio.imwrite(os.path.join(dir_name, saved_img_name), img_pred_)
 
         if 'rgbs' in sample:
             rgbs = sample['rgbs']
             img_gt = rgbs.view(h, w, 3)
             psnrs += [metrics.psnr(img_gt, img_pred).item()]
         
-    if args.dataset_name == 'blender' or \
-      (args.dataset_name == 'phototourism' and args.split == 'test'):
-        imageio.mimsave(os.path.join(dir_name, f'{args.scene_name}.{args.video_format}'),
-                        imgs, fps=30)
+    if args.dataset_name == 'phototourism' and args.split == 'test':
+        imageio.mimsave(os.path.join(dir_name, f'video.{args.video_format}'), imgs, fps=30)
     
     if psnrs:
         mean_psnr = np.mean(psnrs)

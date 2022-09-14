@@ -114,14 +114,14 @@ class NeRFSystem(LightningModule):
     def train_dataloader(self):
         return DataLoader(self.train_dataset,
                           shuffle=True,
-                          num_workers=4,
+                          num_workers=48,
                           batch_size=self.hparams.batch_size,
                           pin_memory=True)
 
     def val_dataloader(self):
         return DataLoader(self.val_dataset,
                           shuffle=False,
-                          num_workers=4,
+                          num_workers=48,
                           batch_size=1, # validate one image (H*W rays) at a time
                           pin_memory=True)
     
@@ -137,8 +137,8 @@ class NeRFSystem(LightningModule):
 
         self.log('lr', get_learning_rate(self.optimizer))
         self.log('train/loss', loss)
-        for k, v in loss_d.items():
-            self.log(f'train/{k}', v, prog_bar=True)
+        # for k, v in loss_d.items():
+        #     self.log(f'train/{k}', v, prog_bar=True)
         self.log('train/psnr', psnr_, prog_bar=True)
 
         return loss

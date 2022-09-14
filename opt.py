@@ -5,15 +5,15 @@ def get_opts():
 
     parser.add_argument('--root_dir', type=str, required=True,
                         help='root directory of dataset')
-    parser.add_argument('--dataset_name', type=str, default='blender',
-                        choices=['blender', 'phototourism'],
+    parser.add_argument('--dataset_name', type=str, default='photourism',
+                        choices=['phototourism'],
                         help='which dataset to train/val')
     # for blender
     parser.add_argument('--data_perturb', nargs="+", type=str, default=[],
                         help='''what perturbation to add to data.
                                 Available choices: [], ["color"], ["occ"] or ["color", "occ"]
                              ''')
-    parser.add_argument('--img_wh', nargs="+", type=int, default=[800, 800],
+    parser.add_argument('--img_wh', nargs="+", type=int, default=[640, 480],
                         help='resolution (img_w, img_h) of the image')
     # for phototourism
     parser.add_argument('--img_downscale', type=int, default=1,

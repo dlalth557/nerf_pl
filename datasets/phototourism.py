@@ -1,3 +1,5 @@
+# Referred to https://github.com/kwea123/nerf_pl/pull/72
+
 import torch
 from torch.utils.data import Dataset
 import glob
@@ -52,13 +54,17 @@ class PhototourismDataset(Dataset):
         if self.use_cache:
             with open(os.path.join(self.root_dir, f'cache/img_ids.pkl'), 'rb') as f:
                 self.img_ids = pickle.load(f)
+            with open(os.path.join(self.root_dir, f'cache/img_to_cam_id.pkl'), 'rb') as f:
+                self.image_to_cam = pickle.load(f)
             with open(os.path.join(self.root_dir, f'cache/image_paths.pkl'), 'rb') as f:
                 self.image_paths = pickle.load(f)
         else:
-            imdata = read_images_binary(os.path.join(self.root_dir, 'dense/sparse/images.bin'))
+            imdata = read_images_binary(os.path.join(self.root_dir, 'colmap/dense/sparse/images.bin'))
             img_path_to_id = {}
+            self.image_to_cam = {} # {id: image id}
             for v in imdata.values():
                 img_path_to_id[v.name] = v.id
+                self.image_to_cam[v.id] = v.camera_id
             self.img_ids = []
             self.image_paths = {} # {id: filename}
             for filename in list(self.files['filename']):
@@ -72,10 +78,11 @@ class PhototourismDataset(Dataset):
                 self.Ks = pickle.load(f)
         else:
             self.Ks = {} # {id: K}
-            camdata = read_cameras_binary(os.path.join(self.root_dir, 'dense/sparse/cameras.bin'))
+            camdata = read_cameras_binary(os.path.join(self.root_dir, 'colmap/dense/sparse/cameras.bin'))
             for id_ in self.img_ids:
                 K = np.zeros((3, 3), dtype=np.float32)
-                cam = camdata[id_]
+                cam_id = self.image_to_cam[id_]
+                cam = camdata[cam_id]
                 img_w, img_h = int(cam.params[2]*2), int(cam.params[3]*2)
                 img_w_, img_h_ = img_w//self.img_downscale, img_h//self.img_downscale
                 K[0, 0] = cam.params[0]*img_w_/img_w # fx
@@ -83,7 +90,7 @@ class PhototourismDataset(Dataset):
                 K[0, 2] = cam.params[2]*img_w_/img_w # cx
                 K[1, 2] = cam.params[3]*img_h_/img_h # cy
                 K[2, 2] = 1
-                self.Ks[id_] = K
+                self.Ks[cam_id] = K
 
         # Step 3: read c2w poses (of the images in tsv file only) and correct the order
         if self.use_cache:
@@ -109,7 +116,7 @@ class PhototourismDataset(Dataset):
             with open(os.path.join(self.root_dir, f'cache/fars.pkl'), 'rb') as f:
                 self.fars = pickle.load(f)
         else:
-            pts3d = read_points3d_binary(os.path.join(self.root_dir, 'dense/sparse/points3D.bin'))
+            pts3d = read_points3d_binary(os.path.join(self.root_dir, 'colmap/dense/sparse/points3D.bin'))
             self.xyz_world = np.array([pts3d[p_id].xyz for p_id in pts3d])
             xyz_world_h = np.concatenate([self.xyz_world, np.ones((len(self.xyz_world), 1))], -1)
             # Compute near and far bounds for each image individually
@@ -152,7 +159,7 @@ class PhototourismDataset(Dataset):
                 for id_ in self.img_ids_train:
                     c2w = torch.FloatTensor(self.poses_dict[id_])
 
-                    img = Image.open(os.path.join(self.root_dir, 'dense/images',
+                    img = Image.open(os.path.join(self.root_dir, 'colmap/dense/images',
                                                   self.image_paths[id_])).convert('RGB')
                     img_w, img_h = img.size
                     if self.img_downscale > 1:
@@ -163,7 +170,7 @@ class PhototourismDataset(Dataset):
                     img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
                     self.all_rgbs += [img]
                     
-                    directions = get_ray_directions(img_h, img_w, self.Ks[id_])
+                    directions = get_ray_directions(img_h, img_w, self.Ks[self.image_to_cam[id_]])
                     rays_o, rays_d = get_rays(directions, c2w)
                     rays_t = id_ * torch.ones(len(rays_o), 1)
 
@@ -172,7 +179,6 @@ class PhototourismDataset(Dataset):
                                                 self.fars[id_]*torch.ones_like(rays_o[:, :1]),
                                                 rays_t],
                                                 1)] # (h*w, 8)
-                                    
                 self.all_rays = torch.cat(self.all_rays, 0) # ((N_images-1)*h*w, 8)
                 self.all_rgbs = torch.cat(self.all_rgbs, 0) # ((N_images-1)*h*w, 3)
         
@@ -193,7 +199,7 @@ class PhototourismDataset(Dataset):
             return self.N_images_train
         if self.split == 'val':
             return self.val_num
-        return len(self.poses_test)
+        return self.N_images_test
 
     def __getitem__(self, idx):
         if self.split == 'train': # use data in the buffers
@@ -209,7 +215,7 @@ class PhototourismDataset(Dataset):
                 id_ = self.img_ids_train[idx]
             sample['c2w'] = c2w = torch.FloatTensor(self.poses_dict[id_])
 
-            img = Image.open(os.path.join(self.root_dir, 'dense/images',
+            img = Image.open(os.path.join(self.root_dir, 'colmap/dense/images',
                                           self.image_paths[id_])).convert('RGB')
             img_w, img_h = img.size
             if self.img_downscale > 1:
@@ -220,7 +226,7 @@ class PhototourismDataset(Dataset):
             img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
             sample['rgbs'] = img
 
-            directions = get_ray_directions(img_h, img_w, self.Ks[id_])
+            directions = get_ray_directions(img_h, img_w, self.Ks[self.image_to_cam[id_]])
             rays_o, rays_d = get_rays(directions, c2w)
             rays = torch.cat([rays_o, rays_d,
                               self.nears[id_]*torch.ones_like(rays_o[:, :1]),
@@ -230,9 +236,10 @@ class PhototourismDataset(Dataset):
             sample['ts'] = id_ * torch.ones(len(rays), dtype=torch.long)
             sample['img_wh'] = torch.LongTensor([img_w, img_h])
 
-        else:
+        else: # test
+            """
             sample = {}
-            sample['c2w'] = c2w = torch.FloatTensor(self.poses_test[idx])
+            sample['c2w'] = c2w = torch.FloatTensor(self.poses_dict[id_])
             directions = get_ray_directions(self.test_img_h, self.test_img_w, self.test_K)
             rays_o, rays_d = get_rays(directions, c2w)
             near, far = 0, 5
@@ -243,5 +250,29 @@ class PhototourismDataset(Dataset):
             sample['rays'] = rays
             sample['ts'] = self.test_appearance_idx * torch.ones(len(rays), dtype=torch.long)
             sample['img_wh'] = torch.LongTensor([self.test_img_w, self.test_img_h])
+            """
+            sample = {}
+            id_ = self.img_ids_test[idx]
+            sample['c2w'] = c2w = torch.FloatTensor(self.poses_dict[id_])
 
+            img = Image.open(os.path.join(self.root_dir, 'colmap/sequences', self.image_paths[id_])).convert('RGB')
+            img_w, img_h = img.size
+            if self.img_downscale > 1:
+                img_w = img_w//self.img_downscale
+                img_h = img_h//self.img_downscale
+                img = img.resize((img_w, img_h), Image.LANCZOS)
+            img = self.transform(img) # (3, h, w)
+            img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
+            sample['rgbs'] = img
+
+            directions = get_ray_directions(img_h, img_w, self.Ks[self.image_to_cam[id_]])
+            rays_o, rays_d = get_rays(directions, c2w)
+            rays = torch.cat([rays_o, rays_d,
+                              self.nears[id_]*torch.ones_like(rays_o[:, :1]),
+                              self.fars[id_]*torch.ones_like(rays_o[:, :1])],
+                              1) # (h*w, 8)
+            sample['rays'] = rays
+            sample['ts'] = id_ * torch.ones(len(rays), dtype=torch.long)
+            sample['img_wh'] = torch.LongTensor([img_w, img_h])
+            sample['img_name'] = self.image_paths[id_]
         return sample
