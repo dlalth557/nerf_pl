@@ -86,6 +86,7 @@ def batched_inference(models, embeddings,
     """Do batched inference on rays using chunk."""
     B = rays.shape[0]
     results = defaultdict(list)
+    # forward 부분
     for i in range(0, B, chunk):
         rendered_ray_chunks = \
             render_rays(models,
@@ -98,9 +99,10 @@ def batched_inference(models, embeddings,
                         0,
                         N_importance,
                         chunk,
-                        white_back,
-                        test_time=True,
-                        **kwargs)
+                        white_back)
+                        # white_back,
+                        # test_time=True,
+                        # **kwargs) # 이거 들어가면 생성 제대로 안됨
 
         for k, v in rendered_ray_chunks.items():
             results[k] += [v.cpu()]
@@ -134,7 +136,6 @@ if __name__ == "__main__":
         embedding_t = torch.nn.Embedding(args.N_vocab, args.N_tau).cuda()
         load_ckpt(embedding_t, args.ckpt_path, model_name='embedding_t')
         embeddings['t'] = embedding_t
-
     nerf_coarse = NeRF('coarse',
                         in_channels_xyz=6*args.N_emb_xyz+3,
                         in_channels_dir=6*args.N_emb_dir+3).cuda()
@@ -147,43 +148,19 @@ if __name__ == "__main__":
                      encode_transient=args.encode_t,
                      in_channels_t=args.N_tau,
                      beta_min=args.beta_min).cuda()
-
     load_ckpt(nerf_coarse, args.ckpt_path, model_name='nerf_coarse')
     load_ckpt(nerf_fine, args.ckpt_path, model_name='nerf_fine')
 
     models = {'coarse': nerf_coarse, 'fine': nerf_fine}
 
     imgs, psnrs = [], []
-    dir_name = f'{args.root_dir}/nerf-w'
+    dir_name = f'{args.root_dir}/nerf-w/test'
     os.makedirs(dir_name, exist_ok=True)
 
     kwargs = {}
 
     # define testing poses and appearance index for phototourism
     if args.dataset_name == 'phototourism' and args.split == 'test':
-        """
-        # define testing camera intrinsics (hard-coded, feel free to change)
-        dataset.test_img_w, dataset.test_img_h = args.img_wh
-        dataset.test_focal = dataset.test_img_w/2/np.tan(np.pi/6) # fov=60 degrees
-        dataset.test_K = np.array([[dataset.test_focal, 0, dataset.test_img_w/2],
-                                   [0, dataset.test_focal, dataset.test_img_h/2],
-                                   [0,                  0,                    1]])
-        if scene == 'brandenburg_gate':
-            # select appearance embedding, hard-coded for each scene
-            dataset.test_appearance_idx = 1123 # 85572957_6053497857.jpg
-            N_frames = 30*4
-            dx = np.linspace(0, 0.03, N_frames)
-            dy = np.linspace(0, -0.1, N_frames)
-            dz = np.linspace(0, 0.5, N_frames)
-            # define poses
-            dataset.poses_test = np.tile(dataset.poses_dict[1123], (N_frames, 1, 1))
-            for i in range(N_frames):
-                dataset.poses_test[i, 0, 3] += dx[i]
-                dataset.poses_test[i, 1, 3] += dy[i]
-                dataset.poses_test[i, 2, 3] += dz[i]
-        else:
-            raise NotImplementedError
-        """
         kwargs['output_transient'] = False
 
     for i in tqdm(range(len(dataset))):
@@ -212,9 +189,6 @@ if __name__ == "__main__":
             rgbs = sample['rgbs']
             img_gt = rgbs.view(h, w, 3)
             psnrs += [metrics.psnr(img_gt, img_pred).item()]
-        
-    if args.dataset_name == 'phototourism' and args.split == 'test':
-        imageio.mimsave(os.path.join(dir_name, f'video.{args.video_format}'), imgs, fps=30)
     
     if psnrs:
         mean_psnr = np.mean(psnrs)

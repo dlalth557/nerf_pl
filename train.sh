@@ -15,11 +15,12 @@ python train.py \
    --encode_a \
    --encode_t \
    --beta_min 0.03 \
-   --batch_size 4096 \
+   --batch_size 8192 \
    --chunk 65536 \
    --num_epochs 20 \
    --num_gpus 2 \
    --optimizer adam \
    --lr 5e-4 \
    --lr_scheduler cosine \
+   --ckpt_path ./ckpts/0914_fire/epoch=18.ckpt \
    --exp_name $2

@@ -141,7 +141,7 @@ class PhototourismDataset(Dataset):
         self.img_ids_train = [id_ for i, id_ in enumerate(self.img_ids) 
                                     if self.files.loc[i, 'split']=='train']
         self.img_ids_test = [id_ for i, id_ in enumerate(self.img_ids)
-                                    if self.files.loc[i, 'split']=='test']
+                                    if self.files.loc[i, 'split']=='test'] #
         self.N_images_train = len(self.img_ids_train)
         self.N_images_test = len(self.img_ids_test)
 
@@ -214,7 +214,6 @@ class PhototourismDataset(Dataset):
             else:
                 id_ = self.img_ids_train[idx]
             sample['c2w'] = c2w = torch.FloatTensor(self.poses_dict[id_])
-
             img = Image.open(os.path.join(self.root_dir, 'colmap/dense/images',
                                           self.image_paths[id_])).convert('RGB')
             img_w, img_h = img.size
@@ -237,33 +236,15 @@ class PhototourismDataset(Dataset):
             sample['img_wh'] = torch.LongTensor([img_w, img_h])
 
         else: # test
-            """
-            sample = {}
-            sample['c2w'] = c2w = torch.FloatTensor(self.poses_dict[id_])
-            directions = get_ray_directions(self.test_img_h, self.test_img_w, self.test_K)
-            rays_o, rays_d = get_rays(directions, c2w)
-            near, far = 0, 5
-            rays = torch.cat([rays_o, rays_d,
-                              near*torch.ones_like(rays_o[:, :1]),
-                              far*torch.ones_like(rays_o[:, :1])],
-                              1)
-            sample['rays'] = rays
-            sample['ts'] = self.test_appearance_idx * torch.ones(len(rays), dtype=torch.long)
-            sample['img_wh'] = torch.LongTensor([self.test_img_w, self.test_img_h])
-            """
             sample = {}
             id_ = self.img_ids_test[idx]
             sample['c2w'] = c2w = torch.FloatTensor(self.poses_dict[id_])
-
-            img = Image.open(os.path.join(self.root_dir, 'colmap/sequences', self.image_paths[id_])).convert('RGB')
+            img = Image.open(os.path.join(self.root_dir, 'colmap/dense/images', 
+                                          self.image_paths[id_])).convert('RGB')
             img_w, img_h = img.size
             if self.img_downscale > 1:
                 img_w = img_w//self.img_downscale
                 img_h = img_h//self.img_downscale
-                img = img.resize((img_w, img_h), Image.LANCZOS)
-            img = self.transform(img) # (3, h, w)
-            img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
-            sample['rgbs'] = img
 
             directions = get_ray_directions(img_h, img_w, self.Ks[self.image_to_cam[id_]])
             rays_o, rays_d = get_rays(directions, c2w)

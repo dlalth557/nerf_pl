@@ -35,8 +35,7 @@ class NeRFSystem(LightningModule):
         self.models_to_train = []
         self.embedding_xyz = PosEmbedding(hparams.N_emb_xyz-1, hparams.N_emb_xyz)
         self.embedding_dir = PosEmbedding(hparams.N_emb_dir-1, hparams.N_emb_dir)
-        self.embeddings = {'xyz': self.embedding_xyz,
-                           'dir': self.embedding_dir}
+        self.embeddings = {'xyz': self.embedding_xyz, 'dir': self.embedding_dir}
 
         if hparams.encode_a:
             self.embedding_a = torch.nn.Embedding(hparams.N_vocab, hparams.N_a)

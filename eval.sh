@@ -10,9 +10,7 @@ python eval.py \
    --root_dir /mnt/ssd0/leemiso/nerf/${DATASET} \
    --scene_name ${DATASET} \
    --split "test" \
-   --img_downscale 2 \
    --N_samples 128 \
-   --N_importance 128 \
    --N_importance 128 \
    --img_downscale 2 \
    --use_cache \
