@@ -18,6 +18,7 @@ python eval.py \
    --encode_a \
    --encode_t \
    --beta_min 0.03 \
+   --gpus 0 \
    --chunk 65536 \
    --ckpt_path ${CKPT} \
    --video_format mp4

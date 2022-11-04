@@ -141,7 +141,7 @@ class PhototourismDataset(Dataset):
         self.img_ids_train = [id_ for i, id_ in enumerate(self.img_ids) 
                                     if self.files.loc[i, 'split']=='train']
         self.img_ids_test = [id_ for i, id_ in enumerate(self.img_ids)
-                                    if self.files.loc[i, 'split']=='test'] #
+                                    if self.files.loc[i, 'split']=='test']
         self.N_images_train = len(self.img_ids_train)
         self.N_images_test = len(self.img_ids_test)
 

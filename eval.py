@@ -64,6 +64,8 @@ def get_opts():
     parser.add_argument('--beta_min', type=float, default=0.1,
                         help='minimum color variance for each ray')
 
+    parser.add_argument('--gpus', nargs="+", type=int, default=[0],
+                        help='device numbers of gpus to use')
     parser.add_argument('--chunk', type=int, default=32*1024*4,
                         help='chunk size to split the input to avoid OOM')
 
@@ -113,7 +115,11 @@ def batched_inference(models, embeddings,
 
 
 if __name__ == "__main__":
+
     args = get_opts()
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(str(x) for x in args.gpus)
+    print("CUDA_VISIBLE_DEVICES: [{}]\n".format(os.environ["CUDA_VISIBLE_DEVICES"]))
 
     kwargs = {'root_dir': args.root_dir,
               'split': args.split}
