@@ -59,7 +59,8 @@ class PhototourismDataset(Dataset):
             with open(os.path.join(self.root_dir, f'cache/image_paths.pkl'), 'rb') as f:
                 self.image_paths = pickle.load(f)
         else:
-            imdata = read_images_binary(os.path.join(self.root_dir, 'colmap/dense/sparse/images.bin'))
+            print("Step 1. load image paths")
+            imdata = read_images_binary(os.path.join(self.root_dir, 'sfm_gt/images.bin'))
             img_path_to_id = {}
             self.image_to_cam = {} # {id: image id}
             for v in imdata.values():
@@ -77,13 +78,16 @@ class PhototourismDataset(Dataset):
             with open(os.path.join(self.root_dir, f'cache/Ks{self.img_downscale}.pkl'), 'rb') as f:
                 self.Ks = pickle.load(f)
         else:
+            print("Step 2: read and rescale camera intrinsics")
             self.Ks = {} # {id: K}
-            camdata = read_cameras_binary(os.path.join(self.root_dir, 'colmap/dense/sparse/cameras.bin'))
+            camdata = read_cameras_binary(os.path.join(self.root_dir, 'sfm_gt/cameras.bin'))
+            print(camdata)
             for id_ in self.img_ids:
                 K = np.zeros((3, 3), dtype=np.float32)
                 cam_id = self.image_to_cam[id_]
                 cam = camdata[cam_id]
-                img_w, img_h = int(cam.params[2]*2), int(cam.params[3]*2)
+                # img_w, img_h = int(cam.params[2]*2), int(cam.params[3]*2)
+                img_w, img_h = int(cam.width), int(cam.height)
                 img_w_, img_h_ = img_w//self.img_downscale, img_h//self.img_downscale
                 K[0, 0] = cam.params[0]*img_w_/img_w # fx
                 K[1, 1] = cam.params[1]*img_h_/img_h # fy
@@ -96,6 +100,7 @@ class PhototourismDataset(Dataset):
         if self.use_cache:
             self.poses = np.load(os.path.join(self.root_dir, 'cache/poses.npy'))
         else:
+            print("Step 3: read c2w poses (of the images in tsv file only) and correct the order")
             w2c_mats = []
             bottom = np.array([0, 0, 0, 1.]).reshape(1, 4)
             for id_ in self.img_ids:
@@ -116,7 +121,8 @@ class PhototourismDataset(Dataset):
             with open(os.path.join(self.root_dir, f'cache/fars.pkl'), 'rb') as f:
                 self.fars = pickle.load(f)
         else:
-            pts3d = read_points3d_binary(os.path.join(self.root_dir, 'colmap/dense/sparse/points3D.bin'))
+            print("Step 4: correct scale")
+            pts3d = read_points3d_binary(os.path.join(self.root_dir, 'sfm_gt/points3D.bin'))
             self.xyz_world = np.array([pts3d[p_id].xyz for p_id in pts3d])
             xyz_world_h = np.concatenate([self.xyz_world, np.ones((len(self.xyz_world), 1))], -1)
             # Compute near and far bounds for each image individually
@@ -144,6 +150,7 @@ class PhototourismDataset(Dataset):
                                     if self.files.loc[i, 'split']=='test']
         self.N_images_train = len(self.img_ids_train)
         self.N_images_test = len(self.img_ids_test)
+        print("Train: {} / Test: {}".format(self.N_images_train, self.N_images_test))
 
         if self.split == 'train': # create buffer of all rays and rgb data
             if self.use_cache:
@@ -159,8 +166,7 @@ class PhototourismDataset(Dataset):
                 for id_ in self.img_ids_train:
                     c2w = torch.FloatTensor(self.poses_dict[id_])
 
-                    img = Image.open(os.path.join(self.root_dir, 'colmap/dense/images',
-                                                  self.image_paths[id_])).convert('RGB')
+                    img = Image.open(os.path.join(self.root_dir, self.image_paths[id_])).convert('RGB')
                     img_w, img_h = img.size
                     if self.img_downscale > 1:
                         img_w = img_w//self.img_downscale
@@ -214,8 +220,7 @@ class PhototourismDataset(Dataset):
             else:
                 id_ = self.img_ids_train[idx]
             sample['c2w'] = c2w = torch.FloatTensor(self.poses_dict[id_])
-            img = Image.open(os.path.join(self.root_dir, 'colmap/dense/images',
-                                          self.image_paths[id_])).convert('RGB')
+            img = Image.open(os.path.join(self.root_dir, self.image_paths[id_])).convert('RGB')
             img_w, img_h = img.size
             if self.img_downscale > 1:
                 img_w = img_w//self.img_downscale
@@ -239,8 +244,7 @@ class PhototourismDataset(Dataset):
             sample = {}
             id_ = self.img_ids_test[idx]
             sample['c2w'] = c2w = torch.FloatTensor(self.poses_dict[id_])
-            img = Image.open(os.path.join(self.root_dir, 'colmap/dense/images', 
-                                          self.image_paths[id_])).convert('RGB')
+            img = Image.open(os.path.join(self.root_dir, self.image_paths[id_])).convert('RGB')
             img_w, img_h = img.size
             if self.img_downscale > 1:
                 img_w = img_w//self.img_downscale

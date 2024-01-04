@@ -11,20 +11,24 @@ def get_opts():
                         help='root directory of dataset')
     parser.add_argument('--train_dirs', nargs="+", type=str, default=[],
                         help='directory list for training')
-
     return parser.parse_args()
 
 args = get_opts()
 dataset_type = args.dataset_type
-path = args.root_dir
-train_dirs = args.train_dirs
-images = f'{path}/colmap/sequences'
-out_path = f'{path}/{dataset_type}.tsv'
+out_path = os.path.join(args.root_dir, dataset_type+'.tsv')
 
 db = []
 header = ['filename', 'id', 'split', 'dataset']
-for image in sorted(os.listdir(images)):
-    db.append([image, '-1', 'train' if image.split('_')[0] in train_dirs else 'test', dataset_type]) # id
+seq_dirs = []
+for file in sorted(os.listdir(args.root_dir)):
+    if file.find('seq') == 0:
+        seq_dirs.append(file)
+
+for seq_dir in seq_dirs:
+    is_train = True if seq_dir in args.train_dirs else False
+    for image in sorted(os.listdir(os.path.join(args.root_dir, seq_dir))):
+        if image.find('color.png') != -1:
+            db.append([os.path.join(seq_dir, image), '-1', 'train' if is_train else 'test', dataset_type])
 
 with open(out_path, 'w') as f:
     f.write('\t'.join(header))
